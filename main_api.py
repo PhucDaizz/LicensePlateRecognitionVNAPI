@@ -23,7 +23,7 @@ class PlateRecognizer:
         logger.info("Đang khởi tạo PlateRecognizer...")
         self.model = YOLO(model_path)
         logger.info(f"Model YOLO đã tải từ: {model_path}")
-        # Cân nhắc thêm các tham số lưu trữ model nếu cần như trong script gốc
+
         self.reader = easyocr.Reader(
             ocr_languages,
             gpu=False,
@@ -32,14 +32,14 @@ class PlateRecognizer:
         )
         logger.info(f"EasyOCR Reader đã khởi tạo với ngôn ngữ: {ocr_languages}, GPU: False")
         self.min_confidence = 0.2
-        # Thêm các ngưỡng kích thước từ script gốc nếu muốn lọc kỹ hơn
+
         self.min_plate_width = 30
         self.min_plate_height = 10
         logger.info("Khởi tạo PlateRecognizer hoàn tất!")
 
     def preprocess_plate(self, roi):
         """
-        Tiền xử lý ảnh biển số để tăng chất lượng OCR (Lấy từ script gốc)
+        Tiền xử lý ảnh biển số để tăng chất lượng OCR 
         """
         try:
             if roi is None or roi.shape[0] < 5 or roi.shape[1] < 5: # Kiểm tra roi hợp lệ
@@ -48,23 +48,19 @@ class PlateRecognizer:
 
             # Chuyển ảnh xám và cân bằng histogram
             gray = cv2.cvtColor(roi, cv2.COLOR_BGR2GRAY)
+
             # Cân bằng histogram thích ứng tương phản giới hạn (CLAHE)
             clahe = cv2.createCLAHE(clipLimit=2.0, tileGridSize=(8, 8))
             enhanced = clahe.apply(gray)
 
-            # Làm sắc nét (Kernel Laplacian thường dùng để làm sắc nét)
-            # kernel = np.array([[0, -1, 0], [-1, 5, -1], [0, -1, 0]]) # Kernel bạn dùng
-            # sharpened = cv2.filter2D(enhanced, -1, kernel)
-            # Hoặc dùng Unsharp Masking có thể hiệu quả hơn
+            # Làm sắc nét 
             blurred = cv2.GaussianBlur(enhanced, (0,0), 3)
             sharpened = cv2.addWeighted(enhanced, 1.5, blurred, -0.5, 0)
 
 
-            # Phân ngưỡng nhị phân tự động (Otsu)
-            # _, binary = cv2.threshold(sharpened, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)
-            # Thử phân ngưỡng thích ứng, thường tốt hơn cho điều kiện ánh sáng thay đổi
+            # Phân ngưỡng nhị phân 
             binary = cv2.adaptiveThreshold(sharpened, 255, cv2.ADAPTIVE_THRESH_GAUSSIAN_C,
-                                           cv2.THRESH_BINARY_INV, 21, 5) # INV có thể cần thử bỏ INV
+                                           cv2.THRESH_BINARY_INV, 21, 5) 
 
 
             logger.debug("Tiền xử lý ROI hoàn tất.")
@@ -87,9 +83,6 @@ class PlateRecognizer:
         Returns:
             str: Chuỗi biển số đã định dạng hoặc chuỗi rỗng nếu không hợp lệ.
         """
-        # Lưu ý: Vì đây là phương thức của lớp, bạn có thể truy cập các thuộc tính
-        # của self nếu cần, ví dụ self.some_config. Tuy nhiên, hàm này hiện tại
-        # chỉ cần tham số text.
 
         if not text:
             logger.debug("Input text is empty or None.")
@@ -98,7 +91,6 @@ class PlateRecognizer:
         cleaned_text = re.sub(r'[\s.-]', '', text).upper()
         logger.debug(f"Input: '{text}' -> Cleaned: '{cleaned_text}'")
 
-        # ... (Toàn bộ logic xử lý regex và format như phiên bản độc lập) ...
 
         # Định dạng Ô tô mới
         car_new_match = re.match(r'^([0-9]{2})([A-Z]{1})([0-9]{5})$', cleaned_text)
@@ -147,6 +139,7 @@ class PlateRecognizer:
         try:
             # Convert bytes to OpenCV image
             img_pil = Image.open(io.BytesIO(image_bytes))
+
             # Chuyển sang BGR là định dạng OpenCV thường dùng
             frame = cv2.cvtColor(np.array(img_pil), cv2.COLOR_RGB2BGR)
             logger.info(f"Đã chuyển đổi bytes thành ảnh OpenCV kích thước: {frame.shape}")
@@ -170,7 +163,7 @@ class PlateRecognizer:
                     x1, y1, x2, y2 = map(int, box)
                     confidence = scores[i]
 
-                    # Lọc theo kích thước (thêm từ script gốc)
+                    # Lọc theo kích thước 
                     plate_width = x2 - x1
                     plate_height = y2 - y1
                     if plate_width < self.min_plate_width or plate_height < self.min_plate_height:
@@ -184,24 +177,24 @@ class PlateRecognizer:
                     processed_roi = self.preprocess_plate(plate_roi)
                     if processed_roi is None:
                         logger.warning(f"Tiền xử lý ROI thất bại, bỏ qua.")
-                        continue # Bỏ qua nếu tiền xử lý lỗi
+                        continue
 
                     # === OCR Processing trên ảnh đã tiền xử lý ===
                     try:
-                        # Có thể thử các tham số khác nhau cho readtext
+                        
                         ocr_result = self.reader.readtext(
-                            processed_roi, # Sử dụng ảnh đã xử lý
-                            decoder='beamsearch', # Giữ nguyên hoặc thử 'greedy'
+                            processed_roi, 
+                            decoder='beamsearch', 
                             beamWidth=10,
-                            batch_size=1, # Giữ batch_size=1 cho từng ROI
+                            batch_size=1, 
                             allowlist='0123456789ABCDEFGHKLMNPSTUVXYZ', # Chỉ nhận diện các ký tự này (bỏ dấu '-' vì đã loại bỏ)
                             detail=0,
-                            paragraph=False # Thử False để ghép các dòng gần nhau
+                            paragraph=False 
                         )
                         combined = ''.join(ocr_result)
                         logger.info(f"OCR Result (raw): {combined} từ ROI {i}")
 
-                        # === SỬ DỤNG HÀM FORMAT MỚI ===
+                        # === SỬ DỤNG HÀM FORMAT ===
                         formatted = self.format_vietnam_plate(combined)
                         if formatted:
                             logger.info(f"Formatted Plate: {formatted}")

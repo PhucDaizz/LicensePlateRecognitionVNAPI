@@ -5,14 +5,9 @@ from ultralytics import YOLO
 import re
 import logging
 import io
-# Bỏ các import liên quan đến FastAPI/Uvicorn
-# from fastapi import FastAPI, File, UploadFile, HTTPException
-# from fastapi.responses import JSONResponse
 from PIL import Image
-# import uvicorn
 
 # --- Cấu hình logging ---
-# Giữ nguyên hoặc chỉnh sửa nếu cần
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(module)s - %(message)s')
 logger = logging.getLogger(__name__)
 
@@ -22,6 +17,7 @@ def display_image(window_name, image, wait_key=0):
     if image is None:
         logger.warning(f"Không thể hiển thị ảnh rỗng cho cửa sổ: {window_name}")
         return
+    
     # Thay đổi kích thước nếu ảnh quá lớn để dễ xem (tùy chọn)
     max_height = 800
     max_width = 1200
@@ -52,7 +48,7 @@ class PlateRecognizer:
         self.min_plate_height = 10
         logger.info("Khởi tạo PlateRecognizer hoàn tất!")
 
-    # === SỬA ĐỔI preprocess_plate ĐỂ HIỂN THỊ CÁC BƯỚC ===
+    # === HIỂN THỊ CÁC BƯỚC ===
     def preprocess_plate(self, roi, roi_index):
         """Tiền xử lý ảnh biển số và hiển thị các bước trung gian."""
         window_prefix = f"ROI {roi_index} - Preprocess"
@@ -84,6 +80,7 @@ class PlateRecognizer:
 
             logger.debug(f"{window_prefix}: Tiền xử lý hoàn tất.")
             return binary
+        
         except cv2.error as cv_err:
              logger.error(f"{window_prefix}: Lỗi OpenCV: {cv_err}", exc_info=True)
              # Đóng các cửa sổ có thể đã mở của bước này nếu có lỗi
@@ -103,7 +100,7 @@ class PlateRecognizer:
             cv2.destroyWindow(f"{window_prefix} - 5. Adaptive Threshold (Binary)")
             return None
 
-    # Giữ nguyên hàm format_vietnam_plate
+    # format_vietnam_plate
     def format_vietnam_plate(self, text):
         if not text:
             return ""
@@ -130,7 +127,7 @@ class PlateRecognizer:
              g1, g2, g3 = car_square_match.groups(); return f"{g1}{g2}-{g3}"
         return ""
 
-    # === HÀM process_image_and_visualize ĐÃ SỬA LỖI ===
+    # === process_image_and_visualize ===
     def process_image_and_visualize(self, frame): # Nhận frame OpenCV thay vì bytes
         """Xử lý ảnh và hiển thị các bước trung gian."""
         try:
@@ -160,7 +157,7 @@ class PlateRecognizer:
                     # --- SỬA LỖI LẤY CLASS ID VÀ LABEL ---
                     cls_tensor = boxes_data.cls[i]
                     cls_id = int(cls_tensor.item()) # Chuyển tensor thành int
-                    # --- KẾT THÚC SỬA LỖI ---
+                    
 
                     # Lấy label từ class id (thêm kiểm tra an toàn)
                     label = "Unknown" # Giá trị mặc định
@@ -197,7 +194,6 @@ class PlateRecognizer:
             if results and results[0].boxes and len(results[0].boxes) > 0:
                  boxes = results[0].boxes.xyxy.cpu().numpy()
                  scores = results[0].boxes.conf.cpu().numpy()
-                 # class_ids = results[0].boxes.cls.cpu().numpy().astype(int) # Không cần lấy lại ở đây nữa
 
                  for i, box in enumerate(boxes):
                     logger.info(f"\n--- Đang xử lý ROI {i} ---")
